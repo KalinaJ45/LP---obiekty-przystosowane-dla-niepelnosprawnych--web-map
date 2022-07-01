@@ -1,0 +1,776 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+        integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+        crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+        integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+        crossorigin=""></script>
+    <link rel="stylesheet" type="text/css" href="style/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="style/bootstrap.css">
+
+    <style>
+        html,
+        body,
+        #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+
+    <title>LP - obiekty dla niepełnosprawnych</title>
+</head>
+
+<body>
+
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-2">
+            <div class="container">
+
+                <a href="https://www.lasy.gov.pl/pl" target="_blank">
+                    <img style="max-height: 30px; margin-right: 10px" src="logo/logo_LP.gif" alt="Lasy Państwowe" />
+                </a>
+                <a href="https://www.bdl.lasy.gov.pl" target="_blank">
+                    <img style="max-height: 30px; margin-right: 7px" src="logo/logo_BDL.png"
+                        title="Bank Danych o Lasach" alt="Bank Danych o Lasach" />
+                </a>
+            </div>
+        </nav>
+    </header>
+
+
+    <div class="container">
+
+        <h6 id="count"> Obiekty rekreacyjno – wypoczynkowe i edukacyjne na terenie Lasów Państwowych częściowo
+            dostosowane do potrzeb osób z niepełnosprawnościami</h6>
+        <p>
+
+        <div style="width: 100%; height: 100%; margin: 0; ">
+            <div id="map">
+            </div>
+        </div>
+
+        <script src="js/multi-style-layer.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/leaflet.wms.js"></script>
+        <script src="data/sciezka_dydaktyczna.js"></script>
+        <script src="data/inny_powierzchniowy.js"></script>
+        <script src="data/miejsce_postoju_pojazdow.js"></script>
+        <script src="data/parking_lesny.js"></script>
+        <script src="data/miejsce_odpoczynku.js"></script>
+        <script src="data/miejsce_biwakowania.js"></script>
+        <script src="data/zielona_klasa.js"></script>
+        <script src="data/izba_edukacji_lesnej.js"></script>
+        <script src="data/osrodek_edukacji_lesnej.js"></script>
+        <script src="data/kwatera_mysliwska.js"></script>
+        <script src="data/osrodek_szkoleniowo_wypoczynkowy.js"></script>
+        <script>
+
+            var map = L.map('map', {
+                zoomControl: true, maxZoom: 28, minZoom: 1
+            })
+            var autolinker = new Autolinker({ truncate: { length: 30, location: 'smart' } });
+
+            L.control.scale({ 'position': 'bottomleft', 'metric': true, 'imperial': false }).addTo(map);
+
+            var bounds_group = new L.featureGroup([]);
+            function setBounds() {
+                if (bounds_group.getLayers().length) {
+                    map.fitBounds(bounds_group.getBounds());
+                }
+                map.setMaxBounds(map.getBounds());
+
+            }
+            var layer_OpenStreetMap = L.tileLayer.wms('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                opacity: 1.0,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                minZoom: 1,
+                maxZoom: 28,
+                minNativeZoom: 0,
+                maxNativeZoom: 19
+            });
+            map.addLayer(layer_OpenStreetMap);
+
+            var layer_Nadlenictwa = L.WMS.layer("https://mapserver.bdl.lasy.gov.pl/ArcGIS/services/WMS_BDL_kat_wlasnosci/MapServer/WMSServer", "5", {
+                format: 'image/png8',
+                uppercase: true,
+                transparent: true,
+                continuousWorld: true,
+                tiled: true,
+                info_format: 'text/html',
+                opacity: 1,
+                identify: false,
+                attribution: '',
+            });
+            map.addLayer(layer_Nadlenictwa);
+
+            var layer_RDLP = L.WMS.layer("https://mapserver.bdl.lasy.gov.pl/ArcGIS/services/WMS_BDL_kat_wlasnosci/MapServer/WMSServer", "6", {
+                format: 'image/png8',
+                uppercase: true,
+                transparent: true,
+                continuousWorld: true,
+                tiled: true,
+                info_format: 'text/html',
+                opacity: 1,
+                identify: false,
+                attribution: '',
+            });
+            map.addLayer(layer_RDLP);
+
+            function pop_sciezka_dydaktyczna(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+
+            function style_sciezka_dydaktyczna() {
+                return {
+                    pane: 'pane_sciezka_dydaktyczna',
+                    opacity: 1,
+                    color: 'rgba(19,212,99,1.0)',
+                    dashArray: '',
+                    lineCap: 'square',
+                    lineJoin: 'bevel',
+                    weight: 2.0,
+                    fillOpacity: 0,
+                    interactive: true,
+                }
+            }
+            function style_sciezka_dydaktyczna() {
+                return {
+                    pane: 'pane_sciezka_dydaktyczna',
+                    opacity: 1,
+                    color: 'rgba(227,26,28,1.0)',
+                    dashArray: '10,5',
+                    lineCap: 'square',
+                    lineJoin: 'bevel',
+                    weight: 2.0,
+                    fillOpacity: 0,
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_sciezka_dydaktyczna');
+            map.getPane('pane_sciezka_dydaktyczna').style.zIndex = 403;
+            map.getPane('pane_sciezka_dydaktyczna').style['mix-blend-mode'] = 'normal';
+            var layer_sciezka_dydaktyczna = new L.geoJson.multiStyle(json_sciezka_dydaktyczna, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_sciezka_dydaktyczna',
+                layerName: 'layer_sciezka_dydaktyczna',
+                pane: 'pane_sciezka_dydaktyczna',
+                onEachFeature: pop_sciezka_dydaktyczna,
+                styles: [style_sciezka_dydaktyczna, style_sciezka_dydaktyczna,]
+            });
+            bounds_group.addLayer(layer_sciezka_dydaktyczna);
+            map.addLayer(layer_sciezka_dydaktyczna);
+
+
+            function pop_inny_powierzchniowy(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_inny_powierzchniowy() {
+                return {
+                    pane: 'pane_inny_powierzchniowy',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(25,229,243,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(25,229,243,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_inny_powierzchniowy');
+            map.getPane('pane_inny_powierzchniowy').style.zIndex = 404;
+            map.getPane('pane_inny_powierzchniowy').style['mix-blend-mode'] = 'normal';
+            var layer_inny_powierzchniowy = new L.geoJson(json_inny_powierzchniowy, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_inny_powierzchniowy',
+                layerName: 'layer_inny_powierzchniowy',
+                pane: 'pane_inny_powierzchniowy',
+                onEachFeature: pop_inny_powierzchniowy,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_inny_powierzchniowy(feature));
+                },
+            });
+            bounds_group.addLayer(layer_inny_powierzchniowy);
+            map.addLayer(layer_inny_powierzchniowy);
+
+
+            function pop_miejsce_postoju_pojazdow(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_miejsce_postoju_pojazdow() {
+                return {
+                    pane: 'pane_miejsce_postoju_pojazdow',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(62,60,57,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(62,60,57,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_miejsce_postoju_pojazdow');
+            map.getPane('pane_miejsce_postoju_pojazdow').style.zIndex = 405;
+            map.getPane('pane_miejsce_postoju_pojazdow').style['mix-blend-mode'] = 'normal';
+            var layer_miejsce_postoju_pojazdow = new L.geoJson(json_miejsce_postoju_pojazdow, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_miejsce_postoju_pojazdow',
+                layerName: 'layer_miejsce_postoju_pojazdow',
+                pane: 'pane_miejsce_postoju_pojazdow',
+                onEachFeature: pop_miejsce_postoju_pojazdow,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_miejsce_postoju_pojazdow(feature));
+                },
+            });
+            bounds_group.addLayer(layer_miejsce_postoju_pojazdow);
+            map.addLayer(layer_miejsce_postoju_pojazdow);
+
+            function pop_parking_lesny(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_parking_lesny() {
+                return {
+                    pane: 'pane_parking_lesny',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(179,184,178,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(179,184,178,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_parking_lesny');
+            map.getPane('pane_parking_lesny').style.zIndex = 406;
+            map.getPane('pane_parking_lesny').style['mix-blend-mode'] = 'normal';
+            var layer_parking_lesny = new L.geoJson(json_parking_lesny, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_parking_lesny',
+                layerName: 'layer_parking_lesny',
+                pane: 'pane_parking_lesny',
+                onEachFeature: pop_parking_lesny,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_parking_lesny(feature));
+                },
+            });
+            bounds_group.addLayer(layer_parking_lesny);
+            map.addLayer(layer_parking_lesny);
+
+            function pop_miejsce_odpoczynku(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_miejsce_odpoczynku() {
+                return {
+                    pane: 'pane_miejsce_odpoczynku',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(227,26,28,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(227,26,28,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_miejsce_odpoczynku');
+            map.getPane('pane_miejsce_odpoczynku').style.zIndex = 407;
+            map.getPane('pane_miejsce_odpoczynku').style['mix-blend-mode'] = 'normal';
+            var layer_miejsce_odpoczynku = new L.geoJson(json_miejsce_odpoczynku, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_miejsce_odpoczynku',
+                layerName: 'layer_miejsce_odpoczynku',
+                pane: 'pane_miejsce_odpoczynku',
+                onEachFeature: pop_miejsce_odpoczynku,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_miejsce_odpoczynku(feature));
+                },
+            });
+            bounds_group.addLayer(layer_miejsce_odpoczynku);
+            map.addLayer(layer_miejsce_odpoczynku);
+
+            function pop_miejsce_biwakowania(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_miejsce_biwakowania() {
+                return {
+                    pane: 'pane_miejsce_biwakowania',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(150,38,219,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(150,38,219,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_miejsce_biwakowania');
+            map.getPane('pane_miejsce_biwakowania').style.zIndex = 408;
+            map.getPane('pane_miejsce_biwakowania').style['mix-blend-mode'] = 'normal';
+            var layer_miejsce_biwakowania = new L.geoJson(json_miejsce_biwakowania, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_miejsce_biwakowania',
+                layerName: 'layer_miejsce_biwakowania',
+                pane: 'pane_miejsce_biwakowania',
+                onEachFeature: pop_miejsce_biwakowania,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_miejsce_biwakowania(feature));
+                },
+            });
+            bounds_group.addLayer(layer_miejsce_biwakowania);
+            map.addLayer(layer_miejsce_biwakowania);
+
+            function pop_zielona_klasa(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_zielona_klasa() {
+                return {
+                    pane: 'pane_zielona_klasa',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(134,179,0,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(134,179,0,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_zielona_klasa');
+            map.getPane('pane_zielona_klasa').style.zIndex = 409;
+            map.getPane('pane_zielona_klasa').style['mix-blend-mode'] = 'normal';
+            var layer_zielona_klasa = new L.geoJson(json_zielona_klasa, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_zielona_klasa',
+                layerName: 'layer_zielona_klasa',
+                pane: 'pane_zielona_klasa',
+                onEachFeature: pop_zielona_klasa,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_zielona_klasa(feature));
+                },
+            });
+            bounds_group.addLayer(layer_zielona_klasa);
+            map.addLayer(layer_zielona_klasa);
+
+            function pop_izba_edukacji_lesnej(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_izba_edukacji_lesnej() {
+                return {
+                    pane: 'pane_izba_edukacji_lesnej',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(243,162,22,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(243,162,22,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_izba_edukacji_lesnej');
+            map.getPane('pane_izba_edukacji_lesnej').style.zIndex = 410;
+            map.getPane('pane_izba_edukacji_lesnej').style['mix-blend-mode'] = 'normal';
+            var layer_izba_edukacji_lesnej = new L.geoJson(json_izba_edukacji_lesnej, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_izba_edukacji_lesnej',
+                layerName: 'layer_izba_edukacji_lesnej',
+                pane: 'pane_izba_edukacji_lesnej',
+                onEachFeature: pop_izba_edukacji_lesnej,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_izba_edukacji_lesnej(feature));
+                },
+            });
+            bounds_group.addLayer(layer_izba_edukacji_lesnej);
+            map.addLayer(layer_izba_edukacji_lesnej);
+
+            function pop_osrodek_edukacji_lesnej(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_osrodek_edukacji_lesnej() {
+                return {
+                    pane: 'pane_osrodek_edukacji_lesnej',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(255,252,65,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(255,252,65,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_osrodek_edukacji_lesnej');
+            map.getPane('pane_osrodek_edukacji_lesnej').style.zIndex = 411;
+            map.getPane('pane_osrodek_edukacji_lesnej').style['mix-blend-mode'] = 'normal';
+            var layer_osrodek_edukacji_lesnej = new L.geoJson(json_osrodek_edukacji_lesnej, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_osrodek_edukacji_lesnej',
+                layerName: 'layer_osrodek_edukacji_lesnej',
+                pane: 'pane_osrodek_edukacji_lesnej',
+                onEachFeature: pop_osrodek_edukacji_lesnej,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_osrodek_edukacji_lesnej(feature));
+                },
+            });
+            bounds_group.addLayer(layer_osrodek_edukacji_lesnej);
+            map.addLayer(layer_osrodek_edukacji_lesnej);
+
+            function pop_kwatera_mysliwska(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_kwatera_mysliwska() {
+                return {
+                    pane: 'pane_kwatera_mysliwska',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(77,50,167,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(77,50,167,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_kwatera_mysliwska');
+            map.getPane('pane_kwatera_mysliwska').style.zIndex = 412;
+            map.getPane('pane_kwatera_mysliwska').style['mix-blend-mode'] = 'normal';
+            var layer_kwatera_mysliwska = new L.geoJson(json_kwatera_mysliwska, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_kwatera_mysliwska',
+                layerName: 'layer_kwatera_mysliwska',
+                pane: 'pane_kwatera_mysliwska',
+                onEachFeature: pop_kwatera_mysliwska,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_kwatera_mysliwska(feature));
+                },
+            });
+            bounds_group.addLayer(layer_kwatera_mysliwska);
+            map.addLayer(layer_kwatera_mysliwska);
+
+            function pop_osrodek_szkoleniowo_wypoczynkowy(feature, layer) {
+                var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>RDLP:</strong><br />' + (feature.properties['RDLP:'] !== null ? Autolinker.link(feature.properties['RDLP:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nadleśnictwo:</strong><br />' + (feature.properties['Nadleśnictwo:'] !== null ? Autolinker.link(feature.properties['Nadleśnictwo:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Nazwa obiektu:</strong><br />' + (feature.properties['Nazwa obiektu:'] !== null ? Autolinker.link(feature.properties['Nazwa obiektu:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:</strong><br />' + (feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'] !== null ? Autolinker.link(feature.properties['Dostosowanie obiektu do potrzeb osób z niepełnosprawnością:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Kontakt:</strong><br />' + (feature.properties['Kontakt:'] !== null ? Autolinker.link(feature.properties['Kontakt:'].toLocaleString(), { truncate: { length: 30, location: 'smart' } }) : '') + '</td>\
+                    </tr>\
+                </table>';
+                layer.bindPopup(popupContent, { maxHeight: 400 });
+            }
+            function style_osrodek_szkoleniowo_wypoczynkowy() {
+                return {
+                    pane: 'pane_osrodek_szkoleniowo_wypoczynkowy',
+                    radius: 4.0,
+                    opacity: 1,
+                    color: 'rgba(235,102,207,1.0)',
+                    dashArray: '',
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    weight: 1,
+                    fill: true,
+                    fillOpacity: 1,
+                    fillColor: 'rgba(235,102,207,1.0)',
+                    interactive: true,
+                }
+            }
+            map.createPane('pane_osrodek_szkoleniowo_wypoczynkowy');
+            map.getPane('pane_osrodek_szkoleniowo_wypoczynkowy').style.zIndex = 413;
+            map.getPane('pane_osrodek_szkoleniowo_wypoczynkowy').style['mix-blend-mode'] = 'normal';
+            var layer_osrodek_szkoleniowo_wypoczynkowy = new L.geoJson(json_osrodek_szkoleniowo_wypoczynkowy, {
+                attribution: '',
+                interactive: true,
+                dataVar: 'json_osrodek_szkoleniowo_wypoczynkowy',
+                layerName: 'layer_osrodek_szkoleniowo_wypoczynkowy',
+                pane: 'pane_osrodek_szkoleniowo_wypoczynkowy',
+                onEachFeature: pop_osrodek_szkoleniowo_wypoczynkowy,
+                pointToLayer: function (feature, latlng) {
+                    var context = {
+                        feature: feature,
+                        variables: {}
+                    };
+                    return L.circleMarker(latlng, style_osrodek_szkoleniowo_wypoczynkowy(feature));
+                },
+            });
+            bounds_group.addLayer(layer_osrodek_szkoleniowo_wypoczynkowy);
+            map.addLayer(layer_osrodek_szkoleniowo_wypoczynkowy);
+
+            var baseMaps = {};
+
+            L.control.layers(baseMaps, { '<img src="legend/osrodek_szkoleniowo_wypoczynkowy.png" /> Ośrodek szkoleniowo-wypoczynkowy': layer_osrodek_szkoleniowo_wypoczynkowy, '<img src="legend/kwatera_mysliwska.png" /> Kwatera myśliwska': layer_kwatera_mysliwska, '<img src="legend/osrodek_edukacji_lesnej.png" /> Ośrodek edukacji leśnej': layer_osrodek_edukacji_lesnej, '<img src="legend/izba_edukacji_lesnej.png" /> Izba edukacji leśnej': layer_izba_edukacji_lesnej, '<img src="legend/zielona_klasa.png" /> Zielona klasa': layer_zielona_klasa, '<img src="legend/miejsce_biwakowania.png" /> Miejsce biwakowania': layer_miejsce_biwakowania, '<img src="legend/miejsce_odpoczynku.png" /> Miejsce odpoczynku': layer_miejsce_odpoczynku, '<img src="legend/parking_lesny.png" /> Parking leśny': layer_parking_lesny, '<img src="legend/miejsce_postoju_pojazdow.png" /> Miejsce postoju pojazdów': layer_miejsce_postoju_pojazdow, '<img src="legend/inny_powierzchniowy.png" /> Inny powierzchniowy': layer_inny_powierzchniowy, '<img src="legend/sciezka_dydaktyczna.png" /> Ścieżka dydaktyczna': layer_sciezka_dydaktyczna, '<img src="legend/rdlp.png" /> RDLP': layer_RDLP, '<img src="legend/nadlesnictwa.png" /> Nadleśnictwa': layer_Nadlenictwa, }).addTo(map);
+            setBounds();
+        </script>
+    </div>
+
+    <footer class="border-top footer fixed-bottom text-muted">
+        <div class="container">
+            &copy; 2020 DGLP
+        </div>
+    </footer>
+
+</body>
+
+</html>
