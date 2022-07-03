@@ -145,7 +145,7 @@
                 layer.bindPopup(popupContent, { maxHeight: 400 });
             }
 
-            function style_sciezka_dydaktyczna() {
+            function style_sciezka_dydaktyczna_01() {
                 return {
                     pane: 'pane_sciezka_dydaktyczna',
                     opacity: 1,
@@ -158,7 +158,7 @@
                     interactive: true,
                 }
             }
-            function style_sciezka_dydaktyczna() {
+            function style_sciezka_dydaktyczna_02() {
                 return {
                     pane: 'pane_sciezka_dydaktyczna',
                     opacity: 1,
@@ -181,7 +181,7 @@
                 layerName: 'layer_sciezka_dydaktyczna',
                 pane: 'pane_sciezka_dydaktyczna',
                 onEachFeature: pop_sciezka_dydaktyczna,
-                styles: [style_sciezka_dydaktyczna, style_sciezka_dydaktyczna,]
+                styles: [style_sciezka_dydaktyczna_01, style_sciezka_dydaktyczna_02,]
             });
             bounds_group.addLayer(layer_sciezka_dydaktyczna);
             map.addLayer(layer_sciezka_dydaktyczna);
